@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D프린터 공장 운영 게임</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,"Malgun Gothic",sans-serif;background:#0f172a;color:#e5e7eb;overflow:hidden}
+.container{width:min(1180px,96vw);height:100vh;margin:auto;padding:10px 0;display:flex;align-items:center}
+.screen{display:none;width:100%;max-height:100vh}.screen.active{display:block}
+.game-screen{height:calc(100vh - 20px);overflow:hidden;display:flex!important;flex-direction:column}
+.game-screen .stats{flex:0 0 auto}
+.game-screen .grid{flex:0 0 auto}
+.game-screen .upgrade-panel{flex:0 0 auto}
+@media(max-width:700px){.game-screen{height:auto;overflow:visible}}
+.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px;box-shadow:0 8px 25px #0005}
+.center{text-align:center}
+.title{font-size:34px;margin:8px 0 6px}
+.sub{color:#94a3b8}
+.factory{font-size:55px;padding:5px}
+button,select{font:inherit;border-radius:8px;border:0;padding:8px 10px}
+button{cursor:pointer;background:#38bdf8;color:#082f49;font-weight:700}
+button:hover{filter:brightness(1.08)}
+button.secondary{background:#475569;color:#fff}
+.big{font-size:19px;padding:12px 24px;margin:10px 0}
+.stats{display:flex;gap:7px;flex-wrap:nowrap;margin-bottom:8px}.stats .stat{min-width:0}
+.stat{flex:1;min-width:0;background:#111827;padding:8px;border-radius:10px;font-size:13px}
+.stat b{display:block;font-size:17px;color:#67e8f9;margin-top:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.options{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.option{background:#111827;border:2px solid #475569;color:#e5e7eb;text-align:left}
+.option.selected{border-color:#38bdf8;background:#0c3345}
+.label{color:#94a3b8;font-size:13px;margin-bottom:5px}
+.order-box{background:#111827;border-radius:12px;padding:14px;margin-bottom:10px}
+.timer{font-size:32px;font-weight:800;color:#facc15}
+.timer.danger{color:#fb7185}
+.progress{height:22px;background:#0b1220;border-radius:20px;overflow:hidden}
+.bar{height:100%;width:0;background:#38bdf8;transition:width .15s}
+.result{font-size:24px;font-weight:700;margin:12px 0}
+.good{color:#86efac}.bad{color:#fca5a5}.warn{color:#fde68a}
+.hint{display:none;background:#0c3345;border:1px solid #38bdf8;padding:12px;border-radius:10px;margin-top:10px}
+.hint.show{display:block}
+.upgrade{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px;background:#111827;border-radius:10px;margin:7px 0}
+.small{font-size:13px;color:#94a3b8}
+.feedback{font-size:55px;font-weight:900;min-height:65px;margin:8px 0}
+.money-fx{font-size:18px;margin-left:5px}
+.rank-list{margin-top:15px;text-align:left}.rank-list div{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #334155}
+.upgrade-panel{position:relative;z-index:5;background:#1e293b;border:1px solid #475569}
+.upgrade-list{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.upgrade-card{background:#111827;border-radius:9px;padding:7px;min-width:0}
+.upgrade-card .upgrade-title{font-weight:700;font-size:12px}
+.upgrade-card .upgrade-cost{font-size:11px;color:#67e8f9;margin:3px 0}
+.balance{display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 11px;color:#facc15;font-weight:700}
+@media(max-width:850px){.upgrade-list{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.upgrade-list{grid-template-columns:1fr 1fr}.upgrade-card button{width:100%;padding:8px 5px;font-size:13px}}
+.name-input{padding:13px;border-radius:10px;border:1px solid #475569;background:#111827;color:#fff;width:min(360px,90%);font-size:17px;text-align:center}
+.feedback-slot{min-height:0;position:relative}
+#message{margin:5px 0;font-size:16px;min-height:0}
+.hint{margin-top:5px;padding:7px;font-size:12px;line-height:1.25;max-height:48px;overflow:hidden}
+.compact-card{min-height:0}
+.record{background:#111827;border-radius:12px;padding:14px;margin-top:10px}
+table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #334155;text-align:center}
+@media(max-width:700px){
+ body{overflow:auto}
+ .container{height:auto;min-height:100vh;padding:10px}
+ .grid{grid-template-columns:1fr}.title{font-size:29px}.options{grid-template-columns:1fr 1fr}
+ .stats{flex-wrap:wrap}.stat{min-width:30%}
+ .upgrade-list{grid-template-columns:1fr 1fr}
+}
+
+
+/* ===== 수행평가용 간단 UI ===== */
+.start-card{max-width:820px;margin:auto;padding:22px}
+.start-card .order-box{margin:15px 0}
+.start-controls{display:flex;flex-direction:column;align-items:center;gap:8px}
+.start-controls .big{margin:4px 0}
+.game-screen{max-width:1180px;margin:auto}
+.game-screen .card{box-shadow:none}
+.game-screen .stats{margin-bottom:7px}
+.game-screen .grid{margin-bottom:7px}
+.game-screen h2{font-size:18px;margin:5px 0 8px}
+.game-screen .order-box{padding:9px}
+.game-screen .upgrade-panel{margin-top:5px}
+
+
+
+/* ===== 최종 게임 UI: 기존 기능 유지 + 한 화면 정리 ===== */
+.game-wrap{width:min(1160px,96vw);height:calc(100vh - 18px);margin:auto;display:flex;flex-direction:column;justify-content:center;gap:7px}
+.game-main{display:grid;grid-template-columns:1.05fr .95fr;gap:8px;min-height:0}
+.game-main .card{min-height:0}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.section-title h2{margin:0;font-size:19px}
+.badge{font-size:12px;padding:5px 8px;border-radius:20px;background:#0f766e;color:#ccfbf1}
+.order-card,.choice-card{padding:12px}
+.order-box{padding:10px;margin:7px 0}
+.order-box h2{margin:0 0 7px;font-size:22px}
+.order-info{display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:13px}
+.order-info div{background:#111827;border-radius:7px;padding:6px}
+.progress-area{margin-top:7px}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
+.progress{height:9px}
+.feedback-slot{min-height:42px}
+#message{margin:4px 0!important;padding:4px!important;font-size:14px!important}
+.hint{margin-top:3px!important;padding:5px!important;font-size:12px!important;line-height:1.2!important;max-height:40px;overflow:hidden}
+.choice-card h3{font-size:13px;margin:7px 0 4px}
+.choice-card .options{gap:5px}
+.choice-card .options button{padding:7px 6px;font-size:13px}
+.print-button{width:100%;margin-top:8px;padding:10px!important;font-size:16px!important}
+.hint-button{width:100%;margin-top:5px;padding:7px!important}
+.printing-card{padding:8px!important}
+.printing-title{text-align:center;font-size:14px;margin-bottom:5px}
+.upgrade-panel{padding:8px!important;margin:0!important}
+.upgrade-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.upgrade-head h2{font-size:16px;margin:0}
+.balance{font-size:13px;padding:5px 9px}
+.upgrade-list{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.upgrade-card{padding:7px!important}
+.upgrade-card .upgrade-title{font-size:12px!important}
+.upgrade-card .upgrade-cost{font-size:10px!important}
+.upgrade-card button{padding:6px 8px!important;font-size:12px}
+@media(max-width:800px){
+ body{overflow:auto}
+ .game-wrap{height:auto;padding:8px 0}
+ .game-main{grid-template-columns:1fr}
+ .upgrade-list{grid-template-columns:repeat(2,1fr)}
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<section id="start" class="screen active">
+  <div class="card start-card">
+    <div class="factory center">🖨️⚙️</div>
+    <h1 class="title center">3D프린터 공장 운영 게임</h1>
+    <div class="order-box">
+      <h2>📖 게임 룰</h2>
+      <ol>
+        <li>주문을 확인하고 필라멘트, 노즐 온도, 출력 속도를 선택합니다.</li>
+        <li>제한시간 안에 올바른 조합을 선택하면 ⭕ 성공합니다.</li>
+        <li>처음 실수하면 경고, 두 번째 실수하면 점수 차감, 세 번째 실수하면 GAME OVER입니다.</li>
+        <li>첫 실수 후 힌트를 사용할 수 있으며, 다음 주문에서 실수 횟수와 힌트는 초기화됩니다.</li>
+        <li>주문을 처리하며 돈을 벌고 공장을 업그레이드할 수 있습니다.</li>
+        <li>주문이 진행될수록 제한시간이 20초에서 10초까지 빨라집니다.</li>
+        <li>게임이 끝나면 최고 점수와 TOP 10 기록을 확인할 수 있습니다.</li>
+      </ol>
+    </div>
+    <div class="center start-controls">
+      <input id="nickname" class="name-input" maxlength="10" placeholder="닉네임을 입력하세요">
+      <button class="big" onclick="startGame()">🎮 게임 시작</button>
+      <div class="record">🏆 최고 점수: <b id="startHighScore">0점</b></div>
+    </div>
+  </div>
+</section>
+
+<section id="game" class="screen" style="width:100%">
+  <div class="game-wrap">
+
+    <!-- 상단 상태 -->
+    <div class="stats">
+      <div class="stat">💰 돈<b id="money">1000원</b></div>
+      <div class="stat">🎯 점수<b id="score">0점</b></div>
+      <div class="stat">📦 주문<b id="orderNo">1 / 8</b></div>
+      <div class="stat">⚠️ 실수<b id="mistakes">0 / 3</b></div>
+      <div class="stat">⏱️ 시간<b id="timer">20.0초</b></div>
+    </div>
+
+    <div class="game-main">
+
+      <!-- 왼쪽: 주문 -->
+      <div class="card order-card">
+        <div class="section-title">
+          <h2>📦 현재 주문</h2>
+          <span id="orderBadge" class="badge">주문 진행 중</span>
+        </div>
+
+        <div class="order-box">
+          <h2 id="product">제품</h2>
+          <div class="order-info">
+            <div>🧵 필요한 필라멘트 <b id="material">PLA</b></div>
+            <div>🌡️ 권장 노즐 온도 <b id="tempNeed">200°C</b></div>
+            <div>⚡ 권장 출력 속도 <b id="speedNeed">50 mm/s</b></div>
+            <div>📏 필요한 필라멘트 양 <b id="filamentNeed">20g</b></div>
+            <div>💵 성공 보상 <b id="reward">300원</b></div>
+          </div>
+        </div>
+
+        <div class="progress-area">
+          <div class="progress-label"><span>⏱️ 주문 제한시간</span><b id="timeLimit">20.0초</b></div>
+          <div class="progress"><div id="timeProgress" class="progress-fill" style="width:100%"></div></div>
+        </div>
+
+        <div class="feedback-slot">
+          <div id="message" class="result" style="display:none;text-align:center"></div>
+          <div id="hint" class="hint"></div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 선택 -->
+      <div class="card choice-card">
+        <div class="section-title">
+          <h2>⚙️ 출력 조건 선택</h2>
+          <span class="small">주문에 맞게 선택하세요</span>
+        </div>
+
+        <h3>🧵 필라멘트</h3>
+        <div id="materialOptions" class="options"></div>
+
+        <h3>🌡️ 노즐 온도</h3>
+        <div id="tempOptions" class="options"></div>
+
+        <h3>⚡ 출력 속도</h3>
+        <div id="speedOptions" class="options"></div>
+
+        <button class="primary print-button" onclick="checkOrder()">🖨️ 출력 시작</button>
+        <button class="secondary hint-button" onclick="showHint()">💡 힌트 보기</button>
+      </div>
+    </div>
+
+    <!-- 출력 중 -->
+    <div id="printing" class="card printing-card" style="display:none">
+      <div class="printing-title">🖨️ 3D프린터 출력 중...</div>
+      <div class="progress"><div id="bar" class="progress-fill"></div></div>
+    </div>
+
+    <!-- 업그레이드: 항상 화면 아래에 보이는 별도 영역 -->
+    <div class="card upgrade-panel">
+      <div class="upgrade-head">
+        <h2>🔧 공장 업그레이드</h2>
+        <span class="balance">💰 현재 잔액 <b id="upgradeMoney">1000</b>원</span>
+      </div>
+      <div class="upgrade-list">
+        <div class="upgrade-card">
+          <div class="upgrade-title">⚡ 프린터 속도</div>
+          <div class="upgrade-cost">500원 · 최대 3회</div>
+          <button onclick="upgrade('speed')">구매</button>
+        </div>
+        <div class="upgrade-card">
+          <div class="upgrade-title">🧵 재료 효율</div>
+          <div class="upgrade-cost">600원 · 최대 3회</div>
+          <button onclick="upgrade('efficiency')">구매</button>
+        </div>
+        <div class="upgrade-card">
+          <div class="upgrade-title">🛠️ 품질 관리</div>
+          <div class="upgrade-cost">700원 · 최대 3회</div>
+          <button onclick="upgrade('quality')">구매</button>
+        </div>
+        <div class="upgrade-card">
+          <div class="upgrade-title">⏳ 시간 느리게</div>
+          <div class="upgrade-cost">800원 · 1회 한정</div>
+          <button onclick="upgrade('slowTime')">구매</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="end" class="screen">
+  <div class="card center">
+    <div class="factory">🏆🏭</div>
+    <h1 id="endTitle">공장 운영 종료!</h1>
+    <div id="finalText"></div>
+    <div class="record">
+      🏆 최고 점수: <b id="highScore">0점</b>
+      <div id="recordMessage" class="small" style="margin-top:7px"></div>
+      <div id="ranking" class="rank-list"></div>
+    </div>
+    <button class="big" onclick="goToStart()">🎮 다시 시작</button>
+  </div>
+</section>
+
+<script>
+// ===============================
+// AI가 생성/구성한 주문 데이터
+// 이 부분을 수정하면 제품 문제를 쉽게 추가할 수 있습니다.
+// ===============================
+const orders = [
+ {product:"미니 기어", material:"PLA", grams:25, temp:"200~215℃", temps:[200,210,215], speed:"보통", reward:180},
+ {product:"스마트폰 거치대", material:"PETG", grams:40, temp:"230~245℃", temps:[230,240,245], speed:"느림", reward:260},
+ {product:"렌치 모형", material:"ABS", grams:55, temp:"240~255℃", temps:[240,250,255], speed:"보통", reward:340},
+ {product:"프로펠러", material:"PLA", grams:30, temp:"200~215℃", temps:[200,210,215], speed:"빠름", reward:220},
+ {product:"케이블 정리 홀더", material:"PETG", grams:20, temp:"230~245℃", temps:[230,240,245], speed:"빠름", reward:170},
+ {product:"기계 부품 케이스", material:"ABS", grams:65, temp:"240~255℃", temps:[240,250,255], speed:"느림", reward:420},
+ {product:"나사 보관함", material:"PLA", grams:45, temp:"200~215℃", temps:[200,210,215], speed:"보통", reward:280},
+ {product:"로봇 팔 조인트", material:"PETG", grams:70, temp:"235~250℃", temps:[235,245,250], speed:"느림", reward:480}
+];
+
+let state={
+ money:1000, score:0, order:0,
+ mistakes:0, hinted:false, orderFinished:false,
+ stock:{PLA:200,PETG:150,ABS:150},
+ speed:0, efficiency:0, quality:0, slowTime:0,
+ upgradeBought:{speed:0,efficiency:0,quality:0,slowTime:0},
+ timer:null, remaining:20, startTime:0
+};
+
+let selected={material:"",temp:"",speed:""};
+const highScoreKey="printerFactoryHighScore";
+
+function getHighScore(){return Number(localStorage.getItem(highScoreKey)||0)}
+function setHighScore(v){localStorage.setItem(highScoreKey,String(v))}
+function show(id){document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active")}
+function playSound(type){
+ const AudioCtx=window.AudioContext||window.webkitAudioContext;
+ if(!AudioCtx)return;
+ const ctx=new AudioCtx();
+ const osc=ctx.createOscillator(), gain=ctx.createGain();
+ osc.connect(gain); gain.connect(ctx.destination);
+ if(type==="money"){osc.frequency.value=880; gain.gain.value=.08;}
+ else if(type==="success"){osc.frequency.value=660; gain.gain.value=.07;}
+ else {osc.frequency.value=180; gain.gain.value=.09;}
+ osc.start();
+ osc.frequency.exponentialRampToValueAtTime(type==="fail"?90:1100,ctx.currentTime+.16);
+ gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.18);
+ osc.stop(ctx.currentTime+.18);
+}
+function goToStart(){ clearInterval(state.timer); show("start"); updateStartHighScore(); document.getElementById("startHighScore").textContent=getHighScore()+"점"; }
+function startGame(){
+ const input=document.getElementById("nickname");
+ const name=(input.value||"").trim();
+ if(!name){alert("닉네임을 먼저 입력해 주세요.");input.focus();return}
+ state={money:1000,score:0,order:0,mistakes:0,hinted:false,orderFinished:false,hasInteracted:false,stock:{PLA:200,PETG:150,ABS:150},speed:0,efficiency:0,quality:0,slowTime:0,upgradeBought:{speed:0,efficiency:0,quality:0,slowTime:0},timer:null,remaining:20,startTime:0,nickname:name};
+ show("game"); renderOrder();
+}
+function getTimeLimit(){
+ // 8개 주문 동안 20초 -> 10초. 시간 느리게 업그레이드 구매 시 조금 완화.
+ const base=Math.max(10,20-(state.order*10/7));
+ return Math.min(20, base + (state.slowTime ? 1.5 : 0));
+}
+function renderOrder(){
+ clearInterval(state.timer);
+ const o=orders[state.order];
+ state.mistakes=0; state.hinted=false; state.orderFinished=false; state.hasInteracted=false;
+ state.remaining=getTimeLimit();
+ selected={material:"",temp:"",speed:""};
+
+ document.getElementById("orderNo").textContent=`${state.order+1} / ${orders.length}`;
+ document.getElementById("product").textContent=o.product;
+ document.getElementById("material").textContent=o.material;
+ document.getElementById("filamentNeed").textContent=o.grams+"g";
+ document.getElementById("tempNeed").textContent=o.temp;
+ document.getElementById("speedNeed").textContent=o.speed;
+ document.getElementById("timeLimit").textContent=state.remaining.toFixed(1)+"초";
+ document.getElementById("mistakes").textContent="0 / 3";
+ document.getElementById("timer").classList.remove("danger");
+ document.getElementById("hint").classList.remove("show");
+ document.getElementById("hint").textContent="";
+ document.getElementById("message").style.display="none";
+ document.getElementById("printing").style.display="none";
+ document.getElementById("bar").style.width="0%";
+
+ makeOptions("materialOptions",["PLA","PETG","ABS"],"material");
+ makeOptions("tempOptions",[200,210,220,230,240,250],"temp");
+ makeOptions("speedOptions",["느림","보통","빠름"],"speed");
+ updateStats();
+ startTimer();
+}
+function makeOptions(id,arr,key){
+ const box=document.getElementById(id); box.innerHTML="";
+ arr.forEach(v=>{
+  const b=document.createElement("button");
+  b.className="option"; b.textContent=v+(key==="temp"?"℃":"");
+  b.onclick=()=>{state.hasInteracted=true;selected[key]=v;box.querySelectorAll("button").forEach(x=>x.classList.remove("selected"));b.classList.add("selected")};
+  box.appendChild(b);
+ });
+}
+function updateStats(){
+ document.getElementById("money").textContent=state.money+"원";
+ document.getElementById("upgradeMoney").textContent=state.money;
+ document.getElementById("score").textContent=state.score+"점";
+ document.getElementById("mistakes").textContent=`${state.mistakes} / 3`;
+}
+function startTimer(){
+ const timerEl=document.getElementById("timer");
+ state.startTime=Date.now();
+ state.timer=setInterval(()=>{
+  if(state.orderFinished)return;
+  state.remaining=getTimeLimit()-(Date.now()-state.startTime)/1000;
+  if(state.remaining<=0){
+   state.remaining=0; clearInterval(state.timer);
+   timeOut();
+  }
+  timerEl.textContent=state.remaining.toFixed(1)+"초";
+  timerEl.classList.toggle("danger",state.remaining<=5);
+  const tp=document.getElementById("timeProgress");
+  if(tp) tp.style.width=Math.max(0,(state.remaining/getTimeLimit())*100)+"%";
+ },100);
+}
+function showMessage(text,type){
+ const el=document.getElementById("message");
+ el.style.display="block"; el.textContent=text; el.className="result "+type;
+}
+function showHint(){
+ state.hasInteracted=true;
+ if(state.mistakes<1){
+  showMessage("힌트는 한 번 틀린 후 사용할 수 있습니다.","warn");
+  return;
+ }
+ if(state.orderFinished)return;
+ const o=orders[state.order];
+ document.getElementById("hint").textContent=`힌트: ${o.product}은(는) ${o.material} 필라멘트와 ${o.temp}, ${o.speed} 속도를 사용해 보세요.`;
+ document.getElementById("hint").classList.add("show");
+ state.hinted=true;
+}
+function checkOrder(){
+ if(state.orderFinished)return;
+ state.hasInteracted=true;
+ if(!selected.material||selected.temp===""||!selected.speed){
+  showMessage("필라멘트, 온도, 속도를 모두 선택하세요.","warn"); return;
+ }
+ const o=orders[state.order];
+ const correctMat=selected.material===o.material;
+ const correctTemp=o.temps.includes(Number(selected.temp));
+ const correctSpeed=selected.speed===o.speed;
+
+ if(correctMat&&correctTemp&&correctSpeed){
+  finishSuccess(o); return;
+ }
+
+ state.mistakes++;
+ updateStats();
+
+ if(state.mistakes===1){
+  showMessage("⚠️ 잘못된 조합입니다! 경고 1회입니다. 다시 선택하세요.","warn");
+ playSound("fail");
+  document.getElementById("hint").textContent="첫 번째 실수입니다. 이제 '힌트 보기'를 눌러 정답 조건을 확인할 수 있습니다.";
+  document.getElementById("hint").classList.add("show");
+ }else if(state.mistakes===2){
+  state.score=Math.max(0,state.score-50);
+  showMessage("❌ 주문 실패! 또 틀렸습니다. 점수 50점이 차감됩니다.","bad");
+ playSound("fail");
+ }else{
+  failAndReset();
+ }
+ updateStats();
+}
+function finishSuccess(o){
+ state.orderFinished=true; clearInterval(state.timer);
+ const timeBonus=Math.floor(state.remaining*5);
+ const points=100+timeBonus;
+ state.score+=points;
+ state.money+=o.reward;
+ showMessage(`⭕ 주문 성공! +${points}점 / +${o.reward}원`,"good");
+ playSound("success");
+ document.getElementById("printing").style.display="block";
+ let p=0;
+ const duration=Math.max(500,700/(1+state.speed*0.1));
+ const t=setInterval(()=>{
+  p+=100/(duration/100);
+  document.getElementById("bar").style.width=Math.min(100,p)+"%";
+  if(p>=100){
+   clearInterval(t);
+   setTimeout(nextOrder,400);
+  }
+ },100);
+ updateStats();
+}
+function timeOut(){
+ state.orderFinished=true;
+ state.mistakes++;
+ updateStats();
+ playSound("fail");
+
+ if(state.hasInteracted){
+  // 이미 게임과 상호작용한 뒤 시간 초과: 일반 실수로 누적
+  showMessage(`❌ 시간 초과! 실수 ${state.mistakes}/3 입니다. 다시 도전하세요.`,"bad");
+  setTimeout(()=>{
+   if(state.mistakes>=3) failAndReset();
+   else{
+    state.orderFinished=false;
+    document.getElementById("message").style.display="none";
+    document.getElementById("hint").textContent="시간 초과로 실수 처리되었습니다. 힌트를 확인할 수 있습니다.";
+    document.getElementById("hint").classList.add("show");
+    state.hinted=false;
+    state.hasInteracted=false;
+    startTimer();
+   }
+  },900);
+ }else{
+  // 주문 시작부터 아무 상호작용도 하지 않음: 경고 누적으로 처리
+  showMessage(`⚠️ 아무 행동도 하지 않았습니다! 경고 ${state.mistakes}/3 입니다.`,"warn");
+  setTimeout(()=>{
+   if(state.mistakes>=3) failAndReset();
+   else{
+    state.orderFinished=false;
+    document.getElementById("message").style.display="none";
+    state.hasInteracted=false;
+    startTimer();
+   }
+  },900);
+ }
+}
+function nextOrder(){
+ if(state.order+1>=orders.length){endGame(false);return}
+ state.order++;
+ renderOrder();
+}
+function failAndReset(){
+ clearInterval(state.timer);
+ state.orderFinished=true;
+ document.getElementById("endTitle").textContent="💀 GAME OVER";
+ document.getElementById("finalText").innerHTML=`실수를 3번 했습니다.<br><b>주문을 3번 잘못하여 게임오버되었습니다.</b><br><br>이번 게임 점수: <b>${state.score}점</b>`;
+ show("end");
+ // 실패한 게임의 점수는 최고 점수 기록에 반영하지 않음
+ document.getElementById("highScore").textContent=getHighScore()+"점";
+ document.getElementById("recordMessage").textContent="3회 실수로 게임이 리셋되었습니다. 기록에 등록되지 않습니다.";
+ renderRanking(getRanking());
+}
+function getRanking(){
+ try{return JSON.parse(localStorage.getItem("printerFactoryRanking")||"[]")}catch(e){return []}
+}
+function saveRanking(){
+ let list=getRanking();
+ list.push({name:state.nickname,score:state.score,date:new Date().toLocaleDateString("ko-KR")});
+ list.sort((a,b)=>b.score-a.score);
+ list=list.slice(0,10);
+ localStorage.setItem("printerFactoryRanking",JSON.stringify(list));
+ return list;
+}
+function renderRanking(list){
+ const box=document.getElementById("ranking");
+ box.innerHTML="<h3>🏆 최고 기록 TOP 10</h3>"+list.map((r,i)=>`<div><span>${i+1}위 ${escapeHtml(r.name)}</span><b>${r.score}점</b></div>`).join("");
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+function endGame(){
+ clearInterval(state.timer);
+ const old=getHighScore();
+ const isNew=state.score>old;
+ if(isNew)setHighScore(state.score);
+ const list=saveRanking();
+ const myRank=list.findIndex(x=>x.name===state.nickname&&x.score===state.score)+1;
+ document.getElementById("endTitle").textContent="🏆 공장 운영 완료!";
+ document.getElementById("finalText").innerHTML=`${escapeHtml(state.nickname)}님, 총 ${orders.length}개 주문 완료!<br><br><b>최종 점수: ${state.score}점</b><br>최종 보유금: ${state.money}원<br><br><b>현재 기록 순위: ${myRank}위</b>`;
+ document.getElementById("highScore").textContent=getHighScore()+"점";
+ document.getElementById("recordMessage").textContent=isNew?"🎉 새로운 최고 점수입니다!":"최고 점수에 도전해 보세요.";
+ renderRanking(list);
+ show("end");
+}
+function upgrade(type){
+ state.hasInteracted=true;
+ const prices={speed:500,efficiency:600,quality:700,slowTime:800};
+ const limits={speed:3,efficiency:3,quality:3,slowTime:1};
+ if(state.upgradeBought[type]>=limits[type]){
+  showMessage("❌ 이 업그레이드는 최대 구매 횟수에 도달했습니다.","bad");
+  playSound("fail");
+  return;
+ }
+ if(state.money<prices[type]){
+  showMessage("❌ 잔액 부족! 업그레이드할 돈이 없습니다.","bad");
+  playSound("fail");
+  return;
+ }
+ state.money-=prices[type];state[type]++;state.upgradeBought[type]++;
+ updateStats();
+ playSound("money");
+ showMessage(type==="slowTime"?"⭕ 시간 느리게 업그레이드 구매 완료! (1회 한정)":"⭕ 업그레이드 구매 완료!","good");
+}
+document.getElementById("startHighScore").textContent=getHighScore()+"점";
+</script>
+</body>
+</html>
